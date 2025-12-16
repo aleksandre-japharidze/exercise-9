@@ -20,14 +20,30 @@ public class Program
 
     private async Task FetchAllPagesAsync()
     {
+        var semaphore = new SemaphoreSlim(MAX_CONCURRENCY);
+        var tasks = new List<Task>();
+
         foreach (var pageUrl in pageUrls)
         {
-            var response = await httpClient.GetAsync(pageUrl);
-            var statusCode = response.StatusCode;
-            var content = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Status Code from {pageUrl}: {statusCode}");
-            Console.WriteLine($"Response from {pageUrl}: {content}\n");
+            tasks.Add(Task.Run(async () =>
+            {
+                await semaphore.WaitAsync();
+                try
+                {
+                    var response = await httpClient.GetAsync(pageUrl);
+                    var statusCode = response.StatusCode;
+                    var content = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Fetched from {pageUrl}: Status Code: {statusCode}");
+                    Console.WriteLine($"Content: {content}\n");
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }));
         }
+
+        await Task.WhenAll(tasks);
     }
 
     public static void Main(string[] args)
