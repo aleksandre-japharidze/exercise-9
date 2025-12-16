@@ -1,54 +1,61 @@
-﻿using System.Reflection.Metadata;
-
-public class Program
+﻿List<string> pageUrls = new List<string>
 {
-    private List<string> pageUrls = new List<string>
+    "https://ipinfo.io/161.185.160.93/geo",
+    "https://official-joke-api.appspot.com/random_joke",
+    "https://randomuser.me/api/",
+    "https://api.zippopotam.us/us/33162",
+    "https://api.agify.io?name=meelad",
+    "https://api.zippopotam.us/us/33162",
+    "https://api.nationalize.io?name=nathaniel",
+    "https://api.genderize.io?name=luc"
+};
+
+int MAX_CONCURRENCY = 4;
+int MAX_TIMEOUT = 800; // ms
+
+HttpClient client = new HttpClient();
+client.Timeout = TimeSpan.FromMilliseconds(MAX_TIMEOUT);
+
+async Task FetchAllPages(List<string> urls)
+{
+    var semaphore = new SemaphoreSlim(MAX_CONCURRENCY);
+    var tasks = new List<Task>();
+    var startTime = DateTime.Now;
+
+    foreach (var url in urls)
     {
-        "https://ipinfo.io/161.185.160.93/geo",
-        "https://official-joke-api.appspot.com/random_joke",
-        "https://randomuser.me/api/",
-        "https://api.zippopotam.us/us/33162",
-        "https://api.agify.io?name=meelad",
-        "https://api.zippopotam.us/us/33162",
-        "https://api.nationalize.io?name=nathaniel",
-        "https://api.genderize.io?name=luc"
-    };
-
-    private const int MAX_CONCURRENCY = 4;
-
-    private HttpClient httpClient = new HttpClient();
-
-    private async Task FetchAllPagesAsync()
-    {
-        var semaphore = new SemaphoreSlim(MAX_CONCURRENCY);
-        var tasks = new List<Task>();
-
-        foreach (var pageUrl in pageUrls)
+        tasks.Add(Task.Run(async () =>
         {
-            tasks.Add(Task.Run(async () =>
+            await semaphore.WaitAsync();
+            try
             {
-                await semaphore.WaitAsync();
-                try
+                var response = await client.GetAsync(url);
+                if (client.Timeout.TotalMilliseconds > MAX_TIMEOUT)
                 {
-                    var response = await httpClient.GetAsync(pageUrl);
-                    var statusCode = response.StatusCode;
-                    var content = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Fetched from {pageUrl}: Status Code: {statusCode}");
-                    Console.WriteLine($"Content: {content}\n");
+                    Console.WriteLine("TIMEOUT: " + url);
+                    return;
                 }
-                finally
+                else if (response.StatusCode != System.Net.HttpStatusCode.OK)
                 {
-                    semaphore.Release();
+                    Console.WriteLine("FAILED: " + url);
+                    return;
                 }
-            }));
-        }
 
-        await Task.WhenAll(tasks);
+                Console.WriteLine("SUCCESS: " + url);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("ERROR: " + e.Message);
+            }
+            finally
+            {
+                semaphore.Release();
+                Console.WriteLine("Total application runtime: " + (DateTime.Now - startTime).TotalSeconds + " seconds");
+            }
+        }));
     }
 
-    public static void Main(string[] args)
-    {
-        var program = new Program();
-        program.FetchAllPagesAsync().GetAwaiter().GetResult();
-    }
+    await Task.WhenAll(tasks);
 }
+
+FetchAllPages(pageUrls).Wait();
