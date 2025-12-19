@@ -1,4 +1,4 @@
-﻿List<string> pageUrls = new List<string>
+﻿List<string> urls = new List<string>
 {
     "https://ipinfo.io/161.185.160.93/geo",
     "https://official-joke-api.appspot.com/random_joke",
@@ -10,52 +10,44 @@
     "https://api.genderize.io?name=luc"
 };
 
-int MAX_CONCURRENCY = 4;
-int MAX_TIMEOUT = 800; // ms
+var semaphore = new SemaphoreSlim(4);
 
-HttpClient client = new HttpClient();
-client.Timeout = TimeSpan.FromMilliseconds(MAX_TIMEOUT);
-
-async Task FetchAllPages(List<string> urls)
+async Task FetchApi(string url, int maxTimeout = 800)
 {
-    var semaphore = new SemaphoreSlim(MAX_CONCURRENCY);
-    var tasks = new List<Task>();
-    var startTime = DateTime.Now;
 
-    foreach (var url in urls)
+    HttpClient client = new HttpClient();
+    client.Timeout = TimeSpan.FromMilliseconds(maxTimeout);
+
+    await semaphore.WaitAsync();
+    Console.WriteLine("FETCHING: " + url);
+
+    try
     {
-        tasks.Add(Task.Run(async () =>
+        var startTime = DateTime.Now;
+        var response = await client.GetAsync(url);
+        var endTime = DateTime.Now;
+        if (client.Timeout.TotalMilliseconds > maxTimeout)
         {
-            await semaphore.WaitAsync();
-            try
-            {
-                var response = await client.GetAsync(url);
-                if (client.Timeout.TotalMilliseconds > MAX_TIMEOUT)
-                {
-                    Console.WriteLine("TIMEOUT: " + url);
-                    return;
-                }
-                else if (response.StatusCode != System.Net.HttpStatusCode.OK)
-                {
-                    Console.WriteLine("FAILED: " + url);
-                    return;
-                }
-
-                Console.WriteLine("SUCCESS: " + url);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("ERROR: " + e.Message);
-            }
-            finally
-            {
-                semaphore.Release();
-                Console.WriteLine("Total application runtime: " + (DateTime.Now - startTime).TotalSeconds + " seconds");
-            }
-        }));
+            Console.WriteLine("TIMEOUT: " + url + " -- TIME: " + (endTime - startTime).TotalMilliseconds);
+            return;
+        }
+        else if (response.StatusCode != System.Net.HttpStatusCode.OK)
+        {
+            Console.WriteLine("FAILED: " + url + " -- TIME: " + (endTime - startTime).TotalMilliseconds);
+            return;
+        }
+        Console.WriteLine("SUCCESS: " + url + " -- TIME: " + (endTime - startTime).TotalMilliseconds);
     }
-
-    await Task.WhenAll(tasks);
+    catch (Exception e)
+    {
+        Console.WriteLine("ERROR: " + e.Message);
+    }
+    finally
+    {
+        semaphore.Release();
+        Console.WriteLine("DONE: " + url);
+    }
 }
 
-FetchAllPages(pageUrls).Wait();
+Task.WaitAll(urls.Select(url => FetchApi(url)).ToArray());
+Console.WriteLine("ALL DONE");
