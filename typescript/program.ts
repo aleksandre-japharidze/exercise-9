@@ -1,4 +1,5 @@
 import pLimit from "p-limit";
+import fetch from "node-fetch";
 
 const urls = [
     "https://ipinfo.io/161.185.160.93/geo",
@@ -11,18 +12,28 @@ const urls = [
     "https://api.genderize.io?name=luc",
 ];
 
-const limit = pLimit(5);
+const limit = pLimit(4);
 
-async function fetchApi(url: string) {
+async function fetchApi(url: string, timeout: number = 800) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
     console.log("FETCHING", url);
-    const response = await fetch(url);
-    if (response.ok) {
-        console.log("SUCCESS", url);
-    } else {
-        console.log("FAIL", url);
+    try {
+        const startTime = performance.now();
+        const response = await fetch(url, { signal: controller.signal });
+        const endTime = performance.now();
+        if (response.status !== 200) {
+            console.log("FAILED", url, "TIME:", endTime - startTime);
+            return;
+        }
+        console.log("SUCCESS", url, "TIME:", endTime - startTime);
+    } catch (error) {
+        console.error("TIMEOUT", error, "TIME:", timeout);
+    } finally {
+        clearTimeout(timeoutId);
+        console.log("DONE", url);
     }
-    console.log("DONE", url);
-    return response;
 }
 
 function limitedFetch(url: string) {
@@ -34,7 +45,7 @@ async function main() {
         await Promise.all(urls.map(limitedFetch));
         console.log("ALL DONE");
     } catch (error) {
-        console.error("ERROR", error);
+        console.error("ERROR: ", error);
     }
 }
 

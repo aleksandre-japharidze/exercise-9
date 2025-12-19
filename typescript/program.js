@@ -1,4 +1,5 @@
 import pLimit from "p-limit";
+import fetch from "node-fetch";
 const urls = [
     "https://ipinfo.io/161.185.160.93/geo",
     "https://official-joke-api.appspot.com/random_joke",
@@ -9,18 +10,28 @@ const urls = [
     "https://api.nationalize.io?name=nathaniel",
     "https://api.genderize.io?name=luc",
 ];
-const limit = pLimit(5);
-async function fetchApi(url) {
+const limit = pLimit(4);
+async function fetchApi(url, timeout = 800) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
     console.log("FETCHING", url);
-    const response = await fetch(url);
-    if (response.ok) {
-        console.log("SUCCESS", url);
+    try {
+        const startTime = performance.now();
+        const response = await fetch(url, { signal: controller.signal });
+        const endTime = performance.now();
+        if (response.status !== 200) {
+            console.log("FAILED", url, "TIME:", endTime - startTime);
+            return;
+        }
+        console.log("SUCCESS", url, "TIME:", endTime - startTime);
     }
-    else {
-        console.log("FAIL", url);
+    catch (error) {
+        console.error("TIMEOUT", error, "TIME:", timeout);
     }
-    console.log("DONE", url);
-    return response;
+    finally {
+        clearTimeout(timeoutId);
+        console.log("DONE", url);
+    }
 }
 function limitedFetch(url) {
     return limit(() => fetchApi(url));
@@ -31,7 +42,7 @@ async function main() {
         console.log("ALL DONE");
     }
     catch (error) {
-        console.error("ERROR", error);
+        console.error("ERROR: ", error);
     }
 }
 main();
