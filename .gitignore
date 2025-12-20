@@ -1,4 +1,5 @@
+.vscode
+.venv
 c#/bin
 c#/obj
-.vscode
 typescript/node_modules
