@@ -14,23 +14,24 @@ const limit = pLimit(4);
 async function fetchApi(url, timeout = 800) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
-    console.log("FETCHING", url);
+    const signal = controller.signal;
+    console.log("FETCHING: ", url);
     try {
         const startTime = performance.now();
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await fetch(url, { signal });
         const endTime = performance.now();
         if (response.status !== 200) {
-            console.log("FAILED", url, "TIME:", endTime - startTime);
+            console.log("FAILED: ", url, " -- TIME: ", endTime - startTime);
             return;
         }
-        console.log("SUCCESS", url, "TIME:", endTime - startTime);
+        console.log("SUCCESS: ", url, "TIME:", endTime - startTime);
     }
     catch (error) {
-        console.error("TIMEOUT", error, "TIME:", timeout);
+        console.error("TIMEOUT: ", error, " -- TIME: ", timeout);
     }
     finally {
         clearTimeout(timeoutId);
-        console.log("DONE", url);
+        console.log("DONE: ", url);
     }
 }
 function limitedFetch(url) {

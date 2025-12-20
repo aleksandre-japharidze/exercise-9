@@ -14,7 +14,6 @@ var semaphore = new SemaphoreSlim(4);
 
 async Task FetchApi(string url, int maxTimeout = 800)
 {
-
     HttpClient client = new HttpClient();
     client.Timeout = TimeSpan.FromMilliseconds(maxTimeout);
 
